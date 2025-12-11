@@ -2,24 +2,26 @@
 Report Manager - Store and Load Generated Reports
 ==================================================
 Saves all generated diet plans for dashboard history.
+
+Session-based storage - works on Streamlit Cloud.
+Each user gets their own reports during their session.
 """
 
-import os
-import json
+import streamlit as st
 import time
 from datetime import datetime
 
-REPORTS_DIR = "data/reports"
 
-
-def ensure_dir():
-    """Create reports directory if it doesn't exist."""
-    os.makedirs(REPORTS_DIR, exist_ok=True)
+def _get_reports_list():
+    """Get reports list from session state."""
+    if "reports" not in st.session_state:
+        st.session_state.reports = []
+    return st.session_state.reports
 
 
 def save_report(medical_text, translation, diet_rec, meal_plan, pdf_path=None):
     """
-    Save a generated report to disk.
+    Save a generated report to session state.
     
     Args:
         medical_text: Original medical report text
@@ -31,11 +33,9 @@ def save_report(medical_text, translation, diet_rec, meal_plan, pdf_path=None):
     Returns:
         report_id: Unique ID of saved report
     """
-    ensure_dir()
-    
     report_id = int(time.time())
     
-    # Extract conditions from translation (simple keyword detection)
+    # Extract conditions from translation
     conditions = extract_conditions(translation + " " + diet_rec)
     
     report = {
@@ -51,61 +51,37 @@ def save_report(medical_text, translation, diet_rec, meal_plan, pdf_path=None):
         "pdf_path": pdf_path
     }
     
-    path = f"{REPORTS_DIR}/report_{report_id}.json"
+    reports = _get_reports_list()
+    reports.insert(0, report)  # Add to beginning (newest first)
+    st.session_state.reports = reports
     
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
-    
-    print(f"✅ Report saved: {path}")
     return report_id
 
 
 def load_reports():
     """
-    Load all saved reports.
+    Load all saved reports from session state.
     
     Returns:
         List of reports sorted by date (newest first)
     """
-    ensure_dir()
-    
-    reports = []
-    
-    for file in os.listdir(REPORTS_DIR):
-        if file.endswith(".json"):
-            try:
-                with open(f"{REPORTS_DIR}/{file}", "r", encoding="utf-8") as f:
-                    reports.append(json.load(f))
-            except Exception as e:
-                print(f"⚠️ Error loading {file}: {e}")
-    
-    # Sort by timestamp (newest first)
-    reports.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
-    
-    return reports
+    return _get_reports_list()
 
 
 def get_report(report_id):
     """Get a specific report by ID."""
-    path = f"{REPORTS_DIR}/report_{report_id}.json"
-    
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    
+    reports = _get_reports_list()
+    for report in reports:
+        if report.get("report_id") == report_id:
+            return report
     return None
 
 
 def delete_report(report_id):
     """Delete a report by ID."""
-    path = f"{REPORTS_DIR}/report_{report_id}.json"
-    
-    if os.path.exists(path):
-        os.remove(path)
-        print(f"✅ Report deleted: {report_id}")
-        return True
-    
-    return False
+    reports = _get_reports_list()
+    st.session_state.reports = [r for r in reports if r.get("report_id") != report_id]
+    return True
 
 
 def get_stats():
@@ -115,12 +91,13 @@ def get_stats():
     Returns:
         dict with stats
     """
-    reports = load_reports()
+    reports = _get_reports_list()
     
     if not reports:
         return {
             "total_reports": 0,
             "conditions": [],
+            "condition_counts": {},
             "most_common_condition": "None",
             "first_report_date": None,
             "last_report_date": None

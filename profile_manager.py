@@ -3,55 +3,30 @@ Profile Manager - Central User Profile Access
 ==============================================
 Single source of truth for user profile.
 All agents import from here.
+
+Session-based storage - works on Streamlit Cloud.
+Each user gets their own profile during their session.
 """
 
 import streamlit as st
-import json
-import os
-
-PROFILE_PATH = "user_profile.json"
 
 
 def get_profile():
-    """Get user profile from session state or file."""
-    # First check session state
+    """Get user profile from session state."""
     if "user_profile" in st.session_state and st.session_state.user_profile:
         return st.session_state.user_profile
-    
-    # Try loading from file
-    try:
-        if os.path.exists(PROFILE_PATH):
-            with open(PROFILE_PATH, 'r') as f:
-                profile = json.load(f)
-                st.session_state.user_profile = profile
-                return profile
-    except:
-        pass
-    
     return None
 
 
 def save_profile(profile):
-    """Save profile to session state and file."""
+    """Save profile to session state."""
     st.session_state.user_profile = profile
-    
-    try:
-        with open(PROFILE_PATH, 'w') as f:
-            json.dump(profile, f, indent=2)
-        return True
-    except:
-        return False
+    return True
 
 
 def delete_profile():
-    """Delete profile from session state and file."""
+    """Delete profile from session state."""
     st.session_state.user_profile = None
-    
-    try:
-        if os.path.exists(PROFILE_PATH):
-            os.remove(PROFILE_PATH)
-    except:
-        pass
 
 
 def has_profile():

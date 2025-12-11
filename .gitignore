@@ -42,15 +42,15 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# Project Specific
-*.pdf
-*.docx
-*.doc
-test_report.txt
+# Project Specific - User Data
+user_profile.json
+data/reports/
+temp_upload.*
 my_blood_test.pdf
+test_report.txt
 
-# Streamlit
-.streamlit/
+# Streamlit (keep config.toml, ignore secrets)
+.streamlit/secrets.toml
 
 # Logs
 *.log

@@ -9,6 +9,7 @@ AI-powered system that reads medical reports and creates **personalized** diet p
 - **🤖 4 AI Agents** - Specialized agents for translation, diet, meal planning, Q&A
 - **📊 Dashboard** - Track all reports, view history, download PDFs
 - **🛡️ Personalization** - Respects vegetarian/vegan, Hindu/Muslim restrictions, allergies
+- **🎨 Professional UI** - Modern design with custom theme, animations, and polished components
 
 ## 🏗️ Architecture
 
@@ -112,6 +113,9 @@ diet-recommendation-system/
 ├── requirements.txt        # Python dependencies
 ├── .env                    # API key (GROQ_API_KEY)
 ├── .gitignore              # Git ignore rules
+│
+├── .streamlit/
+│   └── config.toml            # Custom theme configuration
 │
 ├── agents/
 │   ├── agent1_translator.py   # Medical → Simple language
