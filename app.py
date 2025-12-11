@@ -6,6 +6,7 @@ Author: Navya | December 2025
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import sys
 import os
 import base64
@@ -833,7 +834,7 @@ if st.session_state.current_page == "Dashboard":
     
     if not reports:
         # Beautiful empty state
-        st.markdown('''
+        st.markdown(f'''
             <div style="text-align: center; padding: 3rem 2rem; background: linear-gradient(135deg, #F5F5F5, #EEEEEE); border-radius: 20px; margin: 1rem 0;">
                 <div style="margin-bottom: 1rem;">{icon("file", 64, "#2E7D32")}</div>
                 <h3 style="color: #2E7D32; margin: 0 0 0.5rem 0;">No Reports Yet</h3>
@@ -926,7 +927,7 @@ elif st.session_state.current_page == "Profile":
     is_new = profile is None
     
     if is_new:
-        st.markdown('''
+        st.markdown(f'''
             <div style="text-align: center; padding: 2rem 0;" class="animate-in">
                 <div>{icon("user", 80, "#2E7D32")}</div>
                 <h1 style="color: #2E7D32; font-weight: 700; margin: 1rem 0 0.5rem 0;">Welcome!</h1>
@@ -1169,7 +1170,7 @@ elif st.session_state.current_page == "Upload":
         if st.session_state.medical_text and len(st.session_state.medical_text) > 10:
             # Progress indicator
             progress_container = st.empty()
-            progress_container.markdown('''
+            progress_container.markdown(f'''
                 <div style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9); padding: 2rem; border-radius: 16px; text-align: center;">
                     <div style="margin-bottom: 1rem;">{icon("bot", 48, "#2E7D32")}</div>
                     <h3 style="color: #2E7D32; margin: 0;">AI is analyzing your health data...</h3>
@@ -1270,10 +1271,17 @@ elif st.session_state.current_page == "Upload":
         with st.expander("View"):
             st.write(st.session_state.results["meal_plan"])
         
-        # PDF Download & Preview
+        # PDF Download
         st.markdown(f'<p class="section-header">{icon("download", 20, "#2E7D32")} Download Report</p>', unsafe_allow_html=True)
         try:
             pdf_bytes = generate_pdf(st.session_state.results, profile)
+            
+            st.markdown('''
+                <div style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9); padding: 1.5rem; border-radius: 16px; text-align: center; margin-bottom: 1rem;">
+                    <p style="color: #2E7D32; margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 600;">Your personalized diet plan is ready!</p>
+                    <p style="color: #558B2F; margin: 0; font-size: 0.9rem;">Download the PDF to view your complete meal plan, recommendations, and health summary.</p>
+                </div>
+            ''', unsafe_allow_html=True)
             
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
@@ -1282,15 +1290,29 @@ elif st.session_state.current_page == "Upload":
                     pdf_bytes, 
                     f"diet_plan_{datetime.now().strftime('%Y%m%d')}.pdf", 
                     "application/pdf", 
-                    use_container_width=True
+                    use_container_width=True,
+                    type="primary"
                 )
             
-            # PDF Preview
+            # PDF Preview using components.html (works on Streamlit Cloud)
             with st.expander("Preview PDF"):
-                import base64
                 b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-                pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
-                st.markdown(pdf_display, unsafe_allow_html=True)
+                
+                # Create iframe HTML with sandbox attributes
+                pdf_iframe = f'''
+                    <iframe 
+                        src="data:application/pdf;base64,{b64_pdf}" 
+                        width="100%" 
+                        height="600" 
+                        type="application/pdf"
+                        sandbox="allow-same-origin allow-scripts"
+                        style="border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <p>Your browser does not support PDFs. 
+                        <a href="data:application/pdf;base64,{b64_pdf}" download="diet_plan.pdf">Download the PDF</a> instead.</p>
+                    </iframe>
+                '''
+                
+                components.html(pdf_iframe, height=620, scrolling=True)
                 
         except Exception as e:
             st.error(f"PDF error: {e}")
