@@ -16,18 +16,26 @@ Agent Profile:
 
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from openai import OpenAI
 
 # Load environment variables (API key from .env file)
 load_dotenv()
 
-# Configure Gemini AI
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Groq AI (using OpenAI SDK)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Initialize the Gemini model
-# Using gemini-2.5-flash (fast and efficient for translation tasks)
-model = genai.GenerativeModel('gemini-2.5-flash')
+# Initialize Groq client
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
+
+# Model fallback list (production-stable models only)
+MODEL_FALLBACK = [
+    "llama-3.3-70b-versatile",      # Best reasoning for medical context
+    "openai/gpt-oss-120b",          # Excellent general reasoning
+    "openai/gpt-oss-20b"            # Good fallback, cheaper
+]
 
 
 # ============================================================
@@ -75,9 +83,12 @@ class MedicalTranslatorAgent:
         - Actionable (explain what it means for the patient)
         """
         
-        self.model = model
+        self.client = client
+        self.model_fallback = MODEL_FALLBACK
         
         print(f"✅ {self.role} Agent initialized successfully!")
+        print(f"   Primary model: {MODEL_FALLBACK[0]}")
+        print(f"   Fallback models: {len(MODEL_FALLBACK) - 1}")
     
     
     # ============================================================
@@ -95,46 +106,67 @@ class MedicalTranslatorAgent:
             str: Simplified, patient-friendly translation
         """
         
-        # Create a detailed prompt for the AI
+        # Create a concise prompt for simple explanations
         prompt = f"""
-        You are {self.role}.
-        
-        YOUR GOAL: {self.goal}
-        
-        YOUR BACKGROUND: {self.backstory}
-        
-        TASK: Translate the following medical text into simple language 
-        that a patient with no medical background can understand.
-        
-        GUIDELINES:
-        1. Replace medical jargon with everyday words
-        2. Explain what terms mean in practical terms
-        3. Use analogies when helpful
-        4. Keep it accurate but accessible
-        5. If there are concerning findings, explain them gently but clearly
-        6. Structure the response with clear sections
-        
-        MEDICAL TEXT TO TRANSLATE:
+        You are a medical translator. Your job is to explain medical reports in SIMPLE, SHORT language.
+
+        MEDICAL TEXT:
         {medical_text}
-        
-        PATIENT-FRIENDLY TRANSLATION:
+
+        INSTRUCTIONS:
+        1. Keep it SHORT - maximum 150-200 words total
+        2. Use simple everyday language (5th grade reading level)
+        3. NO medical jargon - replace all technical terms
+        4. Focus on what the patient NEEDS to know
+
+        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+
+        **What Your Report Shows:**
+        [2-3 sentences explaining the main findings in simple words]
+
+        **What This Means For You:**
+        [2-3 sentences explaining the practical impact on their health]
+
+        **Key Numbers:**
+        - [Test name]: [Value] ([Normal/High/Low] - normal is [range])
+        - [Only include 2-4 most important values]
+
+        **Next Steps:**
+        [1-2 sentences on what they should do]
+
+        Keep it friendly, reassuring, and easy to understand. Avoid scary language.
         """
         
-        try:
-            # Generate translation using Gemini AI
-            print("\n🔄 Translating medical text...")
-            response = self.model.generate_content(prompt)
-            
-            # Extract the translated text
-            translation = response.text
-            
-            print("✅ Translation complete!\n")
-            return translation
-            
-        except Exception as e:
-            error_msg = f"❌ Translation failed: {str(e)}"
-            print(error_msg)
-            return error_msg
+        # Try each model in fallback list
+        print("\n🔄 Translating medical text...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a medical translator who explains medical reports in simple language."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+                
+                translation = response.choices[0].message.content
+                print(f"✅ Translation complete using {model}!\n")
+                return translation
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    # Last model failed
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue
     
     
     def translate_medical_term(self, term):
@@ -162,17 +194,33 @@ class MedicalTranslatorAgent:
         Keep it brief and clear.
         """
         
-        try:
-            print(f"\n🔄 Explaining medical term: '{term}'...")
-            response = self.model.generate_content(prompt)
-            explanation = response.text
-            print("✅ Explanation complete!\n")
-            return explanation
-            
-        except Exception as e:
-            error_msg = f"❌ Explanation failed: {str(e)}"
-            print(error_msg)
-            return error_msg
+        print(f"\n🔄 Explaining medical term: '{term}'...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a medical translator."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                explanation = response.choices[0].message.content
+                print(f"✅ Explanation complete using {model}!\n")
+                return explanation
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue
 
 
 # ============================================================

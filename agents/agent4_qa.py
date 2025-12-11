@@ -16,18 +16,27 @@ Agent Profile:
 
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from openai import OpenAI
 from datetime import datetime
 
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini AI
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Groq AI
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Initialize the Gemini model
-model = genai.GenerativeModel('gemini-2.5-flash')
+# Initialize Groq client
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
+
+# Model fallback list (production-stable models only)
+MODEL_FALLBACK = [
+    "llama-3.1-8b-instant",         # Best ultra-fast chat
+    "openai/gpt-oss-20b",           # Good conversational fallback
+    "openai/gpt-oss-120b"           # Fallback with strong comprehension
+]
 
 
 # ============================================================
@@ -85,7 +94,8 @@ class QASupportAgent:
         Your responses should be brief, scannable, and immediately useful.
         """
         
-        self.model = model
+        self.client = client
+        self.model_fallback = MODEL_FALLBACK
         
         # Context tracking
         self.context_set = False
@@ -97,6 +107,8 @@ class QASupportAgent:
         self.conversation_history = []
         
         print(f"✅ {self.role} Agent initialized successfully!")
+        print(f"   Primary model: {MODEL_FALLBACK[0]}")
+        print(f"   Fallback models: {len(MODEL_FALLBACK) - 1}")
     
     
     # ============================================================
@@ -139,61 +151,84 @@ class QASupportAgent:
             str: Concise, actionable answer
         """
         
-        if not self.context_set:
-            return """
-⚠️ Please process a medical report first before asking questions.
-Go to the 'Upload Report' section to get started!
+        # If no context, still answer general nutrition questions
+        context_info = ""
+        if self.context_set:
+            context_info = f"""
+USER'S HEALTH CONTEXT:
+{self.health_condition[:500] if self.health_condition else 'Not provided'}
+
+THEIR RECOMMENDED DIET (summary):
+{self.diet_plan[:800] if self.diet_plan else 'Not provided'}
 """
+        else:
+            context_info = "No specific health context provided. Give general nutrition advice."
         
         # Create CONCISE prompt
         prompt = f"""
-You are a nutrition advisor providing BRIEF, ACTIONABLE answers.
+You are a friendly nutrition advisor. Answer this question clearly and helpfully.
 
-USER'S HEALTH CONTEXT:
-{self.health_condition}
-
-RECOMMENDED DIET:
-{self.diet_plan[:500]}...
+{context_info}
 
 QUESTION: {question}
 
-RESPONSE GUIDELINES (STRICT):
-1. Keep answer to 3-4 sentences MAXIMUM
-2. Use bullet points if listing items (max 4 items)
-3. Be direct and actionable
-4. If complex topic, give brief answer and offer to elaborate
-5. Use simple, conversational language
+INSTRUCTIONS:
+1. Give a DIRECT answer first (1-2 sentences)
+2. If helpful, add 2-4 bullet points with specific tips
+3. Keep total response under 150 words
+4. Use simple, friendly language
+5. If the question relates to their health condition, personalize the answer
+6. Be encouraging and supportive
 
-ANSWER FORMAT:
-- Start with direct answer (1-2 sentences)
-- Add 2-3 bullet points if needed
-- End with: "Need more details? Ask me!"
+FORMAT:
+[Direct answer in 1-2 sentences]
 
-CONCISE ANSWER:
+[If needed, bullet points:]
+- Tip 1
+- Tip 2
+- Tip 3
+
+[Optional: One encouraging closing sentence]
+
+ANSWER:
 """
         
-        try:
-            print(f"\n🔄 Thinking about your question...")
-            
-            # Generate concise response
-            response = self.model.generate_content(prompt)
-            answer = response.text.strip()
-            
-            # Store in conversation history
-            self.conversation_history.append({
-                "question": question,
-                "answer": answer,
-                "timestamp": datetime.now().isoformat()
-            })
-            
-            print(f"✅ Answer ready! (Length: {len(answer)} characters)")
-            
-            return answer
-            
-        except Exception as e:
-            error_msg = f"Error generating answer: {str(e)}"
-            print(f"❌ {error_msg}")
-            return f"❌ {error_msg}"
+        print(f"\n🔄 Thinking about your question...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a friendly nutrition advisor providing brief, helpful answers."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                answer = response.choices[0].message.content.strip()
+                
+                # Store in conversation history
+                self.conversation_history.append({
+                    "question": question,
+                    "answer": answer,
+                    "timestamp": datetime.now().isoformat(),
+                    "model": model
+                })
+                
+                print(f"✅ Answer ready using {model}! (Length: {len(answer)} characters)")
+                return answer
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue
     
     
     # ============================================================

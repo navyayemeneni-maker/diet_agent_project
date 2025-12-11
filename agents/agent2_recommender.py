@@ -16,17 +16,26 @@ Agent Profile:
 
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini AI
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Groq AI
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Initialize the Gemini model
-model = genai.GenerativeModel('gemini-2.5-flash')
+# Initialize Groq client
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
+
+# Model fallback list (production-stable models only)
+MODEL_FALLBACK = [
+    "llama-3.3-70b-versatile",      # Top choice for complex diet rules
+    "openai/gpt-oss-120b",          # Strong logic + flexibility
+    "openai/gpt-oss-20b"            # Lower cost fallback
+]
 
 
 # ============================================================
@@ -76,9 +85,12 @@ class DietRecommenderAgent:
         - Comprehensive (cover foods to eat AND avoid)
         """
         
-        self.model = model
+        self.client = client
+        self.model_fallback = MODEL_FALLBACK
         
         print(f"✅ {self.role} Agent initialized successfully!")
+        print(f"   Primary model: {MODEL_FALLBACK[0]}")
+        print(f"   Fallback models: {len(MODEL_FALLBACK) - 1}")
     
     
     # ============================================================
@@ -96,53 +108,75 @@ class DietRecommenderAgent:
             str: Detailed diet recommendations
         """
         
-        prompt = f"""Based on this medical analysis, provide a diet recommendation.
+        prompt = f"""Based on this medical analysis, provide a detailed diet recommendation.
 
         MEDICAL ANALYSIS:
         {health_condition}
 
-        CRITICAL FORMATTING RULES:
-        1. Under "FOODS TO INCLUDE" section, list ONLY food names as bullets (use "-"), one per line
-        Example:
-        FOODS TO INCLUDE:
-        - Spinach
-        - Salmon
-        - Eggs
-        
-        2. Under "FOODS TO AVOID" section, list ONLY food names as bullets
-        Example:
-        FOODS TO AVOID:
-        - Sugary drinks
-        - Fried foods
-        
-        3. Do NOT add explanations, colons, or parentheses after food names
-        4. Keep each food item to 2-5 words maximum
+        Please provide a comprehensive diet recommendation with the following sections:
 
-        Provide:
-        1. Diet name
-        2. Why this diet
-        3. FOODS TO INCLUDE (bullet list of food names only)
-        4. FOODS TO AVOID (bullet list of food names only)
-        5. Meal timing and portions
-        6. Key nutrients
-        7. Hydration
-        8. Lifestyle tips
+        ## RECOMMENDED DIET
+        Name the specific diet approach (e.g., DASH Diet, Mediterranean Diet, Low Glycemic Diet)
+
+        ## WHY THIS DIET
+        Explain in 2-3 sentences why this diet is recommended for this condition.
+
+        ## FOODS TO INCLUDE
+        List 10-15 specific foods to eat. Format as bullet points:
+        - Food name
+        - Food name
+        (Keep each item to 2-4 words, no explanations)
+
+        ## FOODS TO AVOID
+        List 10-15 specific foods to avoid. Format as bullet points:
+        - Food name
+        - Food name
+        (Keep each item to 2-4 words, no explanations)
+
+        ## MEAL TIMING
+        Provide specific guidance on when and how often to eat.
+
+        ## KEY NUTRIENTS TO FOCUS ON
+        List the most important nutrients for this condition.
+
+        ## HYDRATION GUIDELINES
+        Specific water and fluid recommendations.
+
+        ## LIFESTYLE TIPS
+        3-5 practical tips to support the diet.
+
+        Keep the response well-organized and easy to read.
         """
 
         
-        try:
-            print("\n🔄 Analyzing condition and generating diet recommendations...")
-            response = self.model.generate_content(prompt)
-            
-            recommendation = response.text
-            
-            print("✅ Diet recommendations complete!\n")
-            return recommendation
-            
-        except Exception as e:
-            error_msg = f"❌ Recommendation failed: {str(e)}"
-            print(error_msg)
-            return error_msg
+        print("\n🔄 Analyzing condition and generating diet recommendations...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a clinical nutritionist providing evidence-based diet recommendations."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.6,
+                    max_tokens=2000
+                )
+                
+                recommendation = response.choices[0].message.content
+                print(f"✅ Diet recommendations complete using {model}!\n")
+                return recommendation
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue
     
     
     def recommend_for_multiple_conditions(self, conditions_list):
@@ -179,19 +213,34 @@ class DietRecommenderAgent:
         INTEGRATED DIET RECOMMENDATION:
         """
         
-        try:
-            print(f"\n🔄 Analyzing {len(conditions_list)} conditions...")
-            response = self.model.generate_content(prompt)
-            
-            recommendation = response.text
-            
-            print("✅ Integrated recommendations complete!\n")
-            return recommendation
-            
-        except Exception as e:
-            error_msg = f"❌ Recommendation failed: {str(e)}"
-            print(error_msg)
-            return error_msg
+        print(f"\n🔄 Analyzing {len(conditions_list)} conditions...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a clinical nutritionist."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.6,
+                    max_tokens=2000
+                )
+                
+                recommendation = response.choices[0].message.content
+                print(f"✅ Integrated recommendations complete using {model}!\n")
+                return recommendation
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue
     
     
     def recommend_for_nutrient_deficiency(self, nutrient):
@@ -220,19 +269,34 @@ class DietRecommenderAgent:
         Keep it practical and easy to follow.
         """
         
-        try:
-            print(f"\n🔄 Finding best sources of {nutrient}...")
-            response = self.model.generate_content(prompt)
-            
-            recommendation = response.text
-            
-            print("✅ Nutrient recommendations complete!\n")
-            return recommendation
-            
-        except Exception as e:
-            error_msg = f"❌ Recommendation failed: {str(e)}"
-            print(error_msg)
-            return error_msg
+        print(f"\n🔄 Finding best sources of {nutrient}...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a nutrition specialist."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.6,
+                    max_tokens=1500
+                )
+                
+                recommendation = response.choices[0].message.content
+                print(f"✅ Nutrient recommendations complete using {model}!\n")
+                return recommendation
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue
 
 
 # ============================================================

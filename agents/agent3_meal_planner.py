@@ -16,17 +16,26 @@ Agent Profile:
 
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini AI
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Groq AI
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Initialize the Gemini model
-model = genai.GenerativeModel('gemini-2.5-flash')
+# Initialize Groq client
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
+
+# Model fallback list (production-stable models only)
+MODEL_FALLBACK = [
+    "llama-3.1-8b-instant",         # Fast + creative, perfect for meal plans
+    "openai/gpt-oss-20b",           # Heavier model for more detail
+    "openai/gpt-oss-120b"           # Fallback with strongest reasoning
+]
 
 
 # ============================================================
@@ -76,9 +85,12 @@ class MealPlanBuilderAgent:
         - Easy to follow (clear instructions and measurements)
         """
         
-        self.model = model
+        self.client = client
+        self.model_fallback = MODEL_FALLBACK
         
         print(f"✅ {self.role} Agent initialized successfully!")
+        print(f"   Primary model: {MODEL_FALLBACK[0]}")
+        print(f"   Fallback models: {len(MODEL_FALLBACK) - 1}")
     
     
 # ============================================================
@@ -88,51 +100,89 @@ class MealPlanBuilderAgent:
         """Create a comprehensive 7-day meal plan based on diet recommendations"""
         
         prompt = f"""
-Based on the following diet recommendations, create a detailed 7-DAY meal plan.
+You are a professional meal planner. Create a PRACTICAL 7-day meal plan based on these diet recommendations.
 
-Diet Recommendations:
+DIET RECOMMENDATIONS:
 {diet_recommendation}
 
-Please provide:
+IMPORTANT INSTRUCTIONS:
+1. Keep meals SIMPLE and easy to prepare (under 30 minutes)
+2. Use common, affordable ingredients
+3. Include portion sizes
+4. Make it realistic for busy people
 
-**7-DAY MEAL PLAN:**
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
 
-For each day (Monday through Sunday), provide:
-- Breakfast (with timing and portion)
-- Mid-Morning Snack
-- Lunch (with timing and portion)
-- Evening Snack
-- Dinner (with timing and portion)
+## 7-DAY MEAL PLAN
 
-Include:
-- Specific recipes with ingredients
-- Portion sizes
-- Cooking methods
-- Nutritional highlights
+### DAY 1 (Monday)
+- Breakfast (7-8 AM): [Meal name] - [Brief description, portion]
+- Snack (10 AM): [Snack item]
+- Lunch (12-1 PM): [Meal name] - [Brief description, portion]
+- Snack (4 PM): [Snack item]
+- Dinner (7-8 PM): [Meal name] - [Brief description, portion]
 
-**WEEKLY SHOPPING LIST:**
+### DAY 2 (Tuesday)
+[Same format...]
 
-Organize by category:
-- Vegetables & Fruits
-- Proteins
-- Grains & Carbs
-- Dairy Products
-- Spices & Condiments
-- Others
+[Continue for all 7 days]
 
-**MEAL PREP TIPS:**
-- What to prepare in advance
-- Storage instructions
-- Time-saving strategies
+## QUICK RECIPES (Top 3)
 
-Format the response in a clear, organized manner with day-by-day breakdown.
+**Recipe 1: [Name]**
+- Ingredients: [list]
+- Steps: [brief 3-4 steps]
+- Time: [X minutes]
+
+**Recipe 2: [Name]**
+[Same format]
+
+**Recipe 3: [Name]**
+[Same format]
+
+## SHOPPING LIST
+
+**Vegetables:** [comma-separated list]
+**Fruits:** [comma-separated list]
+**Proteins:** [comma-separated list]
+**Grains:** [comma-separated list]
+**Dairy:** [comma-separated list]
+**Others:** [comma-separated list]
+
+## MEAL PREP TIPS
+- [3-4 practical tips for the week]
+
+Keep it organized, practical, and easy to follow!
 """
         
-        try:
-            response = self.model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            return f"Error creating meal plan: {str(e)}" 
+        print("\n🔄 Creating 7-day meal plan...")
+        
+        for i, model in enumerate(self.model_fallback):
+            try:
+                if i > 0:
+                    print(f"   Trying fallback model {i}: {model}")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a professional meal planner creating practical, healthy meal plans."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.8,
+                    max_tokens=3000
+                )
+                
+                meal_plan = response.choices[0].message.content
+                print(f"✅ Meal plan complete using {model}!\n")
+                return meal_plan
+                
+            except Exception as e:
+                print(f"   ⚠️ Model {model} failed: {str(e)}")
+                if i == len(self.model_fallback) - 1:
+                    error_msg = f"❌ All models failed. Last error: {str(e)}"
+                    print(error_msg)
+                    return error_msg
+                continue 
 
 # ============================================================
 # LAYER 4: TEST/DEMO CODE
