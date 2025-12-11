@@ -1,0 +1,16 @@
+{
+  "name": "nikhil",
+  "diet_type": "Non-Vegetarian",
+  "religious_restrictions": "Hindu (No beef)",
+  "allergies": [
+    "Tree Nuts",
+    "Eggs",
+    "Soy",
+    "Dairy"
+  ],
+  "disliked_foods": [],
+  "cooking_time": "15-30 minutes",
+  "activity_level": "Light",
+  "weight_goal": "Lose weight",
+  "budget": "Moderate"
+}

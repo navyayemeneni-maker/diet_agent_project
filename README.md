@@ -1,96 +1,213 @@
-# Diet Recommendation System
+# 🥗 Diet Recommendation System
 
-AI-powered system that reads medical reports and creates personalized diet plans.
+AI-powered system that reads medical reports and creates **personalized** diet plans based on your dietary preferences, allergies, and restrictions.
 
-## What It Does
+## ✨ Features
 
-1. Reads your medical report (PDF, Word, or Text)
-2. Translates medical terms into simple language
-3. Recommends diet for your health condition
-4. Creates meal plans with recipes
-5. Answers your questions about diet
+- **👤 User Profile** - Set diet type, allergies, religious restrictions, cooking time
+- **📄 Medical Report Analysis** - Upload PDF, Word, or type text
+- **🤖 4 AI Agents** - Specialized agents for translation, diet, meal planning, Q&A
+- **📊 Dashboard** - Track all reports, view history, download PDFs
+- **🛡️ Personalization** - Respects vegetarian/vegan, Hindu/Muslim restrictions, allergies
 
-## Setup
+## 🏗️ Architecture
 
-### Prerequisites
-- Python 3.10 or higher
-- Groq API key (FREE - get from https://console.groq.com)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER INTERFACE                           │
+│                         (Streamlit)                             │
+├─────────────────────────────────────────────────────────────────┤
+│  🏠 Home │ 📊 Dashboard │ 👤 Profile │ 🩺 Analyze │ 💬 Q&A │ ℹ️ About │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      CORE MANAGERS                              │
+├──────────────────┬──────────────────┬───────────────────────────┤
+│  profile_manager │  report_manager  │        llm.py             │
+│  (user prefs)    │  (history)       │    (Groq client)          │
+└──────────────────┴──────────────────┴───────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        AI AGENTS                                │
+├────────────┬────────────┬────────────┬──────────────────────────┤
+│  Agent 1   │  Agent 2   │  Agent 3   │        Agent 4           │
+│ Translator │ Diet Rec   │ Meal Plan  │        Q&A Bot           │
+│ (70B)      │ (70B)      │ (8B)       │        (8B)              │
+└────────────┴────────────┴────────────┴──────────────────────────┘
+```
 
-### Installation
+## 🔄 User Flow
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd <project-directory>
-   ```
+```
+┌──────────────┐
+│  First Visit │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐     ┌──────────────┐
+│  Onboarding  │────▶│ Save Profile │
+│  (Profile)   │     │   to JSON    │
+└──────────────┘     └──────┬───────┘
+                            │
+       ┌────────────────────┘
+       ▼
+┌──────────────┐
+│   Home Page  │◀─────────────────────────────┐
+└──────┬───────┘                              │
+       │                                      │
+       ▼                                      │
+┌──────────────┐                              │
+│Analyze Health│                              │
+│ (PDF/Text)   │                              │
+└──────┬───────┘                              │
+       │                                      │
+       ▼                                      │
+┌──────────────────────────────────────┐      │
+│           AI PIPELINE                │      │
+│                                      │      │
+│  Medical    ──▶  Diet    ──▶  Meal   │      │
+│  Text           Rec          Plan    │      │
+│    │             │            │      │      │
+│    ▼             ▼            ▼      │      │
+│  Agent 1     Agent 2      Agent 3    │      │
+│  (translate) (recommend)  (plan)     │      │
+└──────────────────┬───────────────────┘      │
+                   │                          │
+                   ▼                          │
+┌──────────────────────────────────────┐      │
+│            RESULTS                   │      │
+│  • Simple Explanation                │      │
+│  • Foods to Eat/Avoid Table          │      │
+│  • Full Diet Recommendations         │      │
+│  • 7-Day Meal Plan                   │      │
+│  • PDF Download                      │      │
+└──────────────────┬───────────────────┘      │
+                   │                          │
+                   ▼                          │
+┌──────────────────────────────────────┐      │
+│  Save to Dashboard (report_manager)  │──────┘
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│            DASHBOARD                 │
+│  • View all past reports             │
+│  • Track health conditions           │
+│  • Re-download PDFs                  │
+│  • Delete old reports                │
+└──────────────────────────────────────┘
+```
 
-2. **Create a virtual environment**
-   ```bash
-   python3 -m venv venv
-   ```
+## 📁 Project Structure
 
-3. **Activate the virtual environment**
-   - On macOS/Linux:
-     ```bash
-     source venv/bin/activate
-     ```
-   - On Windows:
-     ```bash
-     venv\Scripts\activate
-     ```
+```
+diet-recommendation-system/
+├── app.py                  # Main Streamlit app (all pages)
+├── llm.py                  # Groq AI client
+├── profile_manager.py      # User profile storage
+├── report_manager.py       # Report history storage
+├── file_reader.py          # PDF/DOCX text extraction
+├── requirements.txt        # Python dependencies
+├── .env                    # API key (GROQ_API_KEY)
+├── .gitignore              # Git ignore rules
+│
+├── agents/
+│   ├── agent1_translator.py   # Medical → Simple language
+│   ├── agent2_recommender.py  # Health → Diet recommendations
+│   ├── agent3_meal_planner.py # Diet → 7-day meal plan
+│   └── agent4_qa.py           # Q&A bot
+│
+├── data/
+│   └── reports/               # Saved report history (auto-created)
+│
+└── user_profile.json          # Saved user preferences (auto-created)
+```
 
-4. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 🤖 AI Agents
 
-5. **Configure API Key**
-   - Create a `.env` file in the project root
-   - Add your Groq API key:
-     ```
-     GROQ_API_KEY=your_groq_api_key_here
-     ```
-   - Get your FREE API key from: https://console.groq.com
-   - No credit card required!
+| Agent | Purpose | Model | Speed |
+|-------|---------|-------|-------|
+| **Agent 1** | Translate medical jargon → simple language | `llama-3.3-70b-versatile` | ~5s |
+| **Agent 2** | Create diet recommendations based on health + profile | `llama-3.3-70b-versatile` | ~8s |
+| **Agent 3** | Generate 7-day meal plan with recipes | `llama-3.1-8b-instant` | ~3s |
+| **Agent 4** | Answer follow-up questions | `llama-3.1-8b-instant` | ~2s |
 
-## How to Use
+## 🛡️ Personalization Examples
 
-### Web Interface (Recommended)
+| User Profile | What AI Does |
+|--------------|--------------|
+| Vegetarian | Never recommends meat, fish, poultry |
+| Hindu | Never recommends beef |
+| Muslim/Halal | Never recommends pork |
+| Peanut Allergy | Never includes peanuts (dangerous!) |
+| Cooking: 15 min | Only quick recipes |
+| Budget-friendly | Affordable ingredients |
 
-Run the Streamlit web app for a user-friendly browser interface:
+## 🚀 Quick Start
+
+### 1. Clone & Setup
+
+```bash
+git clone <repository-url>
+cd diet-recommendation-system
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Get Groq API Key (FREE)
+
+1. Go to https://console.groq.com
+2. Sign up (no credit card needed)
+3. Create API key
+4. Create `.env` file:
+
+```
+GROQ_API_KEY=your_api_key_here
+```
+
+### 3. Run the App
 
 ```bash
 streamlit run app.py
 ```
 
-The app will open in your browser at `http://localhost:8501`
+App opens at `http://localhost:8501`
 
-### Features
+## 📱 Pages
 
-- **🏠 Home:** Overview and quick demo
-- **📄 Upload Report:** Upload medical reports (PDF, Word, or Text) and get personalized diet plans
-- **💬 Ask Questions:** Get instant answers about your diet and nutrition
-- **ℹ️ About:** Learn about the AI agents and technology
+| Page | Description |
+|------|-------------|
+| 🏠 **Home** | Welcome page with quick stats |
+| 📊 **Dashboard** | View all reports, track conditions, download PDFs |
+| 👤 **My Profile** | Set diet type, allergies, restrictions |
+| 🩺 **Analyze Health** | Upload medical report or enter health data, generate diet plan |
+| 💬 **Ask Questions** | Q&A about diet and nutrition |
+| ℹ️ **About** | System info and disclaimer |
 
-### Navigation
+## 📋 Requirements
 
-The app uses a clean page-based navigation system. Simply click on any page in the sidebar to navigate:
-- Home page for overview and demos
-- Upload Report page to analyze your medical data
-- Ask Questions page for nutrition Q&A
-- About page to learn more about the system
+```
+streamlit
+python-dotenv
+openai
+fpdf
+PyPDF2
+python-docx
+pandas
+```
 
-## Technology
+## ⚠️ Disclaimer
 
-- Python 3.10+
-- Groq AI (Production-Stable Models)
-- 4 Specialized AI Agents with Automatic Fallback:
-  - Agent 1: Medical Translator (Llama 3.3 70B → GPT-OSS 120B → GPT-OSS 20B)
-  - Agent 2: Diet Recommender (Llama 3.3 70B → GPT-OSS 120B → GPT-OSS 20B)
-  - Agent 3: Meal Planner (Llama 3.1 8B Instant → GPT-OSS 20B → GPT-OSS 120B)
-  - Agent 4: Q&A Bot (Llama 3.1 8B Instant → GPT-OSS 20B → GPT-OSS 120B)
-- Intelligent fallback system with production-stable models ensures 99.9% uptime
+This is **not medical advice**. Always consult a healthcare professional before making dietary changes.
 
-## Author
+## 👩‍💻 Author
 
-Navya - December 2025
+**Navya** - Data Science & AI Student  
+December 2025

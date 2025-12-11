@@ -1,399 +1,91 @@
 """
-Diet Recommender Agent
-======================
-This agent recommends specific diets based on medical conditions
-and health concerns identified in medical reports.
-
-Agent Profile:
-- Role: Clinical Nutritionist & Diet Specialist
-- Expertise: Medical nutrition therapy
-- Goal: Recommend evidence-based diets for specific health conditions
+Agent 2: Diet Recommender
+=========================
+Recommends diet based on health condition + user profile.
+Model: llama-3.3-70b-versatile (deep diet logic)
 """
 
-# ============================================================
-# LAYER 1: IMPORTS AND CONFIGURATION
-# ============================================================
-
+import sys
 import os
-from dotenv import load_dotenv
-from openai import OpenAI
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Load environment variables
-load_dotenv()
-
-# Configure Groq AI
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-# Initialize Groq client
-client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1"
-)
-
-# Model fallback list (production-stable models only)
-MODEL_FALLBACK = [
-    "llama-3.3-70b-versatile",      # Top choice for complex diet rules
-    "openai/gpt-oss-120b",          # Strong logic + flexibility
-    "openai/gpt-oss-20b"            # Lower cost fallback
-]
+from llm import client
+from profile_manager import get_profile, format_profile
 
 
-# ============================================================
-# LAYER 2: AGENT DEFINITION
-# ============================================================
-
-class DietRecommenderAgent:
+def run_agent2(simple_explanation):
     """
-    An AI agent specialized in recommending therapeutic diets
-    based on medical conditions.
+    Recommend diet based on health condition and user preferences.
     
-    Attributes:
-        role: The agent's professional role
-        goal: What the agent aims to achieve
-        backstory: The agent's expertise and experience
-        model: The AI model used for recommendations
+    Args:
+        simple_explanation: Output from Agent 1
+        
+    Returns:
+        Diet recommendations with foods to eat/avoid
     """
     
-    def __init__(self):
-        """Initialize the Diet Recommender Agent"""
-        
-        # Agent Identity
-        self.role = "Clinical Nutritionist & Diet Specialist"
-        
-        self.goal = """
-        Analyze medical conditions and health concerns to recommend 
-        specific, evidence-based dietary approaches that can help 
-        manage, improve, or prevent the progression of health issues.
-        """
-        
-        self.backstory = """
-        You are a certified clinical nutritionist with 20+ years of experience 
-        in medical nutrition therapy. You have:
-        
-        - Advanced degrees in Clinical Nutrition and Dietetics
-        - Specialization in therapeutic diets for chronic diseases
-        - Experience working with diabetic, cardiac, renal patients
-        - Deep knowledge of nutritional biochemistry
-        - Published research on diet-disease relationships
-        - Training in personalized nutrition approaches
-        
-        Your recommendations are:
-        - Evidence-based (backed by scientific research)
-        - Condition-specific (tailored to the health issue)
-        - Practical (easy to follow in real life)
-        - Safe (no extreme or dangerous approaches)
-        - Comprehensive (cover foods to eat AND avoid)
-        """
-        
-        self.client = client
-        self.model_fallback = MODEL_FALLBACK
-        
-        print(f"✅ {self.role} Agent initialized successfully!")
-        print(f"   Primary model: {MODEL_FALLBACK[0]}")
-        print(f"   Fallback models: {len(MODEL_FALLBACK) - 1}")
+    profile = get_profile()
+    profile_str = format_profile(profile) if profile else ""
     
-    
-    # ============================================================
-    # LAYER 3: RECOMMENDATION FUNCTIONS
-    # ============================================================
-    
-    def recommend_diet(self, health_condition):
-        """
-        Recommend a specific diet based on health condition.
-        
-        Args:
-            health_condition (str): The health issue or translated medical report
-            
-        Returns:
-            str: Detailed diet recommendations
-        """
-        
-        prompt = f"""Based on this medical analysis, provide a detailed diet recommendation.
+    prompt = f"""
+You are a clinical nutritionist. Create diet recommendations.
 
-        MEDICAL ANALYSIS:
-        {health_condition}
+USER PROFILE:
+{profile_str}
 
-        Please provide a comprehensive diet recommendation with the following sections:
+HEALTH EXPLANATION:
+{simple_explanation}
 
-        ## RECOMMENDED DIET
-        Name the specific diet approach (e.g., DASH Diet, Mediterranean Diet, Low Glycemic Diet)
+⚠️ STRICT RULES:
+- NEVER recommend foods the user is allergic to (dangerous!)
+- NEVER recommend meat/fish for vegetarians/vegans
+- NEVER recommend beef for Hindus, pork for Muslims
+- AVOID foods the user dislikes
+- Consider cooking time and budget preferences
 
-        ## WHY THIS DIET
-        Explain in 2-3 sentences why this diet is recommended for this condition.
+Provide recommendations with these sections:
 
-        ## FOODS TO INCLUDE
-        List 10-15 specific foods to eat. Format as bullet points:
-        - Food name
-        - Food name
-        (Keep each item to 2-4 words, no explanations)
+## RECOMMENDED DIET
+Name the diet approach (e.g., DASH Diet, Mediterranean Diet)
 
-        ## FOODS TO AVOID
-        List 10-15 specific foods to avoid. Format as bullet points:
-        - Food name
-        - Food name
-        (Keep each item to 2-4 words, no explanations)
+## WHY THIS DIET
+2-3 sentences explaining why.
 
-        ## MEAL TIMING
-        Provide specific guidance on when and how often to eat.
+## FOODS TO INCLUDE
+List 10-15 specific foods. Format as bullet points:
+- Food name
+- Food name
 
-        ## KEY NUTRIENTS TO FOCUS ON
-        List the most important nutrients for this condition.
+## FOODS TO AVOID
+List 10-15 specific foods to avoid. Format as bullet points:
+- Food name
+- Food name
 
-        ## HYDRATION GUIDELINES
-        Specific water and fluid recommendations.
+## MEAL TIMING
+When and how often to eat.
 
-        ## LIFESTYLE TIPS
-        3-5 practical tips to support the diet.
+## KEY NUTRIENTS
+Most important nutrients for this condition.
 
-        Keep the response well-organized and easy to read.
-        """
+## HYDRATION
+Water and fluid recommendations.
 
-        
-        print("\n🔄 Analyzing condition and generating diet recommendations...")
-        
-        for i, model in enumerate(self.model_fallback):
-            try:
-                if i > 0:
-                    print(f"   Trying fallback model {i}: {model}")
-                
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a clinical nutritionist providing evidence-based diet recommendations."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.6,
-                    max_tokens=2000
-                )
-                
-                recommendation = response.choices[0].message.content
-                print(f"✅ Diet recommendations complete using {model}!\n")
-                return recommendation
-                
-            except Exception as e:
-                print(f"   ⚠️ Model {model} failed: {str(e)}")
-                if i == len(self.model_fallback) - 1:
-                    error_msg = f"❌ All models failed. Last error: {str(e)}"
-                    print(error_msg)
-                    return error_msg
-                continue
-    
-    
-    def recommend_for_multiple_conditions(self, conditions_list):
-        """
-        Recommend diet considering multiple health conditions.
-        
-        Args:
-            conditions_list (list): List of health conditions
-            
-        Returns:
-            str: Integrated diet recommendations
-        """
-        
-        conditions_text = "\n- ".join(conditions_list)
-        
-        prompt = f"""
-        You are {self.role}.
-        
-        COMPLEX CASE: Patient has multiple health conditions:
-        
-        - {conditions_text}
-        
-        TASK: Recommend an INTEGRATED diet approach that addresses ALL 
-        these conditions simultaneously. Find the common dietary principles 
-        that benefit all conditions.
-        
-        Address:
-        1. How to balance dietary needs for all conditions
-        2. Foods that benefit multiple conditions
-        3. How to avoid conflicting dietary advice
-        4. Priority conditions that need primary focus
-        5. Practical meal planning considerations
-        
-        INTEGRATED DIET RECOMMENDATION:
-        """
-        
-        print(f"\n🔄 Analyzing {len(conditions_list)} conditions...")
-        
-        for i, model in enumerate(self.model_fallback):
-            try:
-                if i > 0:
-                    print(f"   Trying fallback model {i}: {model}")
-                
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a clinical nutritionist."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.6,
-                    max_tokens=2000
-                )
-                
-                recommendation = response.choices[0].message.content
-                print(f"✅ Integrated recommendations complete using {model}!\n")
-                return recommendation
-                
-            except Exception as e:
-                print(f"   ⚠️ Model {model} failed: {str(e)}")
-                if i == len(self.model_fallback) - 1:
-                    error_msg = f"❌ All models failed. Last error: {str(e)}"
-                    print(error_msg)
-                    return error_msg
-                continue
-    
-    
-    def recommend_for_nutrient_deficiency(self, nutrient):
-        """
-        Recommend foods rich in specific nutrients.
-        
-        Args:
-            nutrient (str): The nutrient needed (e.g., "iron", "vitamin D")
-            
-        Returns:
-            str: Foods rich in that nutrient
-        """
-        
-        prompt = f"""
-        You are a nutrition specialist.
-        
-        TASK: A patient needs more {nutrient} in their diet.
-        
-        Provide:
-        1. **Top 10 food sources** of {nutrient} (with amounts)
-        2. **Vegetarian options** if applicable
-        3. **How to maximize absorption** (food combinations)
-        4. **Daily recommended amount**
-        5. **Supplementation advice** (when food isn't enough)
-        
-        Keep it practical and easy to follow.
-        """
-        
-        print(f"\n🔄 Finding best sources of {nutrient}...")
-        
-        for i, model in enumerate(self.model_fallback):
-            try:
-                if i > 0:
-                    print(f"   Trying fallback model {i}: {model}")
-                
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a nutrition specialist."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.6,
-                    max_tokens=1500
-                )
-                
-                recommendation = response.choices[0].message.content
-                print(f"✅ Nutrient recommendations complete using {model}!\n")
-                return recommendation
-                
-            except Exception as e:
-                print(f"   ⚠️ Model {model} failed: {str(e)}")
-                if i == len(self.model_fallback) - 1:
-                    error_msg = f"❌ All models failed. Last error: {str(e)}"
-                    print(error_msg)
-                    return error_msg
-                continue
+## LIFESTYLE TIPS
+3-5 practical tips.
 
-
-# ============================================================
-# LAYER 4: TEST/DEMO CODE
-# ============================================================
-
-def demo_recommender():
-    """
-    Demonstration of the Diet Recommender Agent capabilities.
-    """
+REMEMBER: All recommendations must respect the user's dietary profile!
+"""
     
-    print("=" * 60)
-    print("🥗 DIET RECOMMENDER AGENT - DEMO")
-    print("=" * 60)
+    print("🔄 Agent 2: Creating diet recommendations...")
     
-    # Initialize the agent
-    agent = DietRecommenderAgent()
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6,
+        max_tokens=2000
+    )
     
+    result = response.choices[0].message.content
+    print("✅ Agent 2: Diet recommendations complete!")
     
-    # Example 1: Single condition - Diabetes
-    print("\n" + "=" * 60)
-    print("📋 EXAMPLE 1: Diabetes Diet Recommendation")
-    print("=" * 60)
-    
-    condition_1 = """
-    You have high blood sugar (diabetes). Your fasting blood glucose 
-    is 186 mg/dL and HbA1c is 8.2%, which are both higher than normal.
-    """
-    
-    print("\n🏥 HEALTH CONDITION:")
-    print(condition_1)
-    
-    diet_rec_1 = agent.recommend_diet(condition_1)
-    print("\n🥗 DIET RECOMMENDATION:")
-    print(diet_rec_1)
-    
-    
-    # Example 2: Single condition - Hypertension
-    print("\n\n" + "=" * 60)
-    print("📋 EXAMPLE 2: High Blood Pressure Diet")
-    print("=" * 60)
-    
-    condition_2 = """
-    You have high blood pressure (Stage 2 hypertension) with 
-    readings of 164/98 mmHg. This puts you at risk for heart 
-    problems and stroke.
-    """
-    
-    print("\n🏥 HEALTH CONDITION:")
-    print(condition_2)
-    
-    diet_rec_2 = agent.recommend_diet(condition_2)
-    print("\n🥗 DIET RECOMMENDATION:")
-    print(diet_rec_2)
-    
-    
-    # Example 3: Multiple conditions
-    print("\n\n" + "=" * 60)
-    print("📋 EXAMPLE 3: Multiple Conditions")
-    print("=" * 60)
-    
-    conditions_list = [
-        "Type 2 Diabetes",
-        "High Blood Pressure",
-        "High Cholesterol"
-    ]
-    
-    print("\n🏥 HEALTH CONDITIONS:")
-    for condition in conditions_list:
-        print(f"  - {condition}")
-    
-    integrated_rec = agent.recommend_for_multiple_conditions(conditions_list)
-    print("\n🥗 INTEGRATED DIET RECOMMENDATION:")
-    print(integrated_rec)
-    
-    
-    # Example 4: Nutrient deficiency
-    print("\n\n" + "=" * 60)
-    print("📋 EXAMPLE 4: Low Platelets (Need Platelet-Boosting Foods)")
-    print("=" * 60)
-    
-    nutrient_rec = agent.recommend_for_nutrient_deficiency("Vitamin K and iron for increasing platelets")
-    print("\n🥗 FOOD RECOMMENDATIONS:")
-    print(nutrient_rec)
-    
-    
-    print("\n" + "=" * 60)
-    print("✅ DEMO COMPLETE!")
-    print("=" * 60)
-
-
-# ============================================================
-# MAIN EXECUTION
-# ============================================================
-
-if __name__ == "__main__":
-    """
-    This code runs when you execute the file directly.
-    """
-    demo_recommender()
+    return result
